@@ -23,9 +23,51 @@ from diffusion.unet import UNet
 from diffusion.vp import VPSDE
 
 
+def apply_config_defaults(parser: argparse.ArgumentParser, config_path: str | None):
+    if config_path is None:
+        return
+    import yaml
+
+    with open(config_path, "r") as f:
+        cfg = yaml.safe_load(f) or {}
+
+    defaults = {}
+    model_cfg = cfg.get("model", {})
+    sde_cfg = cfg.get("sde", {})
+    training_cfg = cfg.get("training", {})
+    paths_cfg = cfg.get("paths", {})
+
+    if "in_channels" in model_cfg:
+        defaults["in_channels"] = model_cfg["in_channels"]
+    if "base_channels" in model_cfg:
+        defaults["base_channels"] = model_cfg["base_channels"]
+    if "beta_min" in sde_cfg:
+        defaults["beta_min"] = sde_cfg["beta_min"]
+    if "beta_max" in sde_cfg:
+        defaults["beta_max"] = sde_cfg["beta_max"]
+    if "T" in sde_cfg:
+        defaults["T"] = sde_cfg["T"]
+    if "epochs" in training_cfg:
+        defaults["epochs"] = training_cfg["epochs"]
+    if "lr" in training_cfg:
+        defaults["lr"] = training_cfg["lr"]
+    if "batch_size" in training_cfg:
+        defaults["batch_size"] = training_cfg["batch_size"]
+    if "patience" in training_cfg:
+        defaults["patience"] = training_cfg["patience"]
+    if "save_dir" in paths_cfg:
+        defaults["save_dir"] = paths_cfg["save_dir"]
+    if "data_dir" in paths_cfg:
+        defaults["data_dir"] = paths_cfg["data_dir"]
+
+    parser.set_defaults(**defaults)
+
+
 def get_args():
     p = argparse.ArgumentParser()
     p.add_argument("--config",    type=str,   default=None)
+    p.add_argument("--in_channels", type=int, default=1)
+    p.add_argument("--base_channels", type=int, default=64)
     p.add_argument("--beta_min",  type=float, default=0.01)
     p.add_argument("--beta_max",  type=float, default=5.0)
     p.add_argument("--T",         type=int,   default=1000)
@@ -33,20 +75,23 @@ def get_args():
     p.add_argument("--lr",        type=float, default=1e-4)
     p.add_argument("--batch_size",type=int,   default=128)
     p.add_argument("--save_dir",  type=str,   default="runs/vp")
+    p.add_argument("--data_dir",  type=str,   default="data")
     p.add_argument("--device",    type=str,   default="cuda" if torch.cuda.is_available() else "cpu")
     # Early stopping
     p.add_argument("--patience",  type=int,   default=10,
                    help="Stop if val loss does not improve for this many epochs. 0 = disabled.")
+    config_args, _ = p.parse_known_args()
+    apply_config_defaults(p, config_args.config)
     return p.parse_args()
 
 
-def build_dataloader(batch_size: int):
+def build_dataloader(batch_size: int, data_dir: str):
     tf = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.5,), (0.5,)),   # map to [-1, 1]
     ])
-    train_ds = datasets.FashionMNIST("data", train=True,  download=True, transform=tf)
-    val_ds   = datasets.FashionMNIST("data", train=False, download=True, transform=tf)
+    train_ds = datasets.FashionMNIST(data_dir, train=True,  download=True, transform=tf)
+    val_ds   = datasets.FashionMNIST(data_dir, train=False, download=True, transform=tf)
     train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True,  num_workers=2, pin_memory=True)
     val_dl   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
     return train_dl, val_dl
@@ -82,10 +127,10 @@ def main():
     device = torch.device(args.device)
 
     sde   = VPSDE(beta_min=args.beta_min, beta_max=args.beta_max, T=args.T)
-    model = UNet(in_channels=1, base_channels=64).to(device)
+    model = UNet(in_channels=args.in_channels, base_channels=args.base_channels).to(device)
     opt   = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-    train_dl, val_dl = build_dataloader(args.batch_size)
+    train_dl, val_dl = build_dataloader(args.batch_size, args.data_dir)
 
     train_losses, val_losses = [], []
     best_val = math.inf

@@ -6,7 +6,7 @@ Part 6 of EE/CS 148B HW4.
 Reference: Liu et al. (2023) "Flow Straight and Fast: Learning to Generate
 and Transfer Data with Rectified Flow" (ICLR 2023).
 
-Students implement every method marked TODO.
+Student-facing implementation of rectified flow utilities.
 """
 
 from __future__ import annotations

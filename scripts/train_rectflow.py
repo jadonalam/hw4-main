@@ -26,12 +26,56 @@ from diffusion.unet import UNet
 from diffusion.rectflow import RectifiedFlow
 
 
+def apply_config_defaults(parser: argparse.ArgumentParser, config_path: str | None, reflow: bool):
+    if config_path is None:
+        return
+    import yaml
+
+    with open(config_path, "r") as f:
+        cfg = yaml.safe_load(f) or {}
+
+    defaults = {}
+    model_cfg = cfg.get("model", {})
+    training_cfg = cfg.get("training", {})
+    reflow_cfg = cfg.get("reflow", {})
+    paths_cfg = cfg.get("paths", {})
+
+    if "in_channels" in model_cfg:
+        defaults["in_channels"] = model_cfg["in_channels"]
+    if "base_channels" in model_cfg:
+        defaults["base_channels"] = model_cfg["base_channels"]
+    if "epochs" in training_cfg:
+        defaults["epochs"] = training_cfg["epochs"]
+    if "lr" in training_cfg:
+        defaults["lr"] = training_cfg["lr"]
+    if "batch_size" in training_cfg:
+        defaults["batch_size"] = training_cfg["batch_size"]
+    if "save_dir" in paths_cfg:
+        defaults["save_dir"] = paths_cfg["save_dir"]
+    if "data_dir" in paths_cfg:
+        defaults["data_dir"] = paths_cfg["data_dir"]
+    if "n_pairs" in reflow_cfg:
+        defaults["n_reflow_pairs"] = reflow_cfg["n_pairs"]
+    if "euler_steps" in reflow_cfg:
+        defaults["reflow_steps"] = reflow_cfg["euler_steps"]
+    if reflow and "retrain_epochs" in reflow_cfg:
+        defaults["epochs"] = reflow_cfg["retrain_epochs"]
+    if reflow and "reflow_save_dir" in paths_cfg:
+        defaults["save_dir"] = paths_cfg["reflow_save_dir"]
+
+    parser.set_defaults(**defaults)
+
+
 def get_args():
     p = argparse.ArgumentParser()
+    p.add_argument("--config",        type=str,   default=None)
+    p.add_argument("--in_channels",   type=int,   default=1)
+    p.add_argument("--base_channels", type=int,   default=64)
     p.add_argument("--epochs",         type=int,   default=50)
     p.add_argument("--lr",             type=float, default=1e-4)
     p.add_argument("--batch_size",     type=int,   default=128)
     p.add_argument("--save_dir",       type=str,   default="runs/rectflow")
+    p.add_argument("--data_dir",       type=str,   default="data")
     p.add_argument("--device",         type=str,   default="cuda" if torch.cuda.is_available() else "cpu")
     # Reflow options
     p.add_argument("--reflow",         action="store_true",
@@ -41,15 +85,17 @@ def get_args():
     p.add_argument("--n_reflow_pairs", type=int,   default=50_000)
     p.add_argument("--reflow_steps",   type=int,   default=100,
                    help="Euler steps used to generate reflow pairs.")
+    config_args, _ = p.parse_known_args()
+    apply_config_defaults(p, config_args.config, config_args.reflow)
     return p.parse_args()
 
 
-def build_dataloader(batch_size: int):
+def build_dataloader(batch_size: int, data_dir: str):
     tf = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.5,), (0.5,)),
     ])
-    ds = datasets.FashionMNIST("data", train=True, download=True, transform=tf)
+    ds = datasets.FashionMNIST(data_dir, train=True, download=True, transform=tf)
     return DataLoader(ds, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=True)
 
 
@@ -72,7 +118,7 @@ def main():
     device = torch.device(args.device)
 
     flow  = RectifiedFlow()
-    model = UNet(in_channels=1, base_channels=64).to(device)
+    model = UNet(in_channels=args.in_channels, base_channels=args.base_channels).to(device)
 
     if args.reflow:
         # ---------------------------------------------------------------
@@ -96,7 +142,7 @@ def main():
         dataloader = DataLoader(reflow_ds, batch_size=args.batch_size, shuffle=True, num_workers=2)
 
         # Re-initialise a fresh model for retraining
-        model = UNet(in_channels=1, base_channels=64).to(device)
+        model = UNet(in_channels=args.in_channels, base_channels=args.base_channels).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
         train_losses = []
@@ -129,7 +175,7 @@ def main():
         # ---------------------------------------------------------------
         # Standard first-round training
         # ---------------------------------------------------------------
-        dataloader = build_dataloader(args.batch_size)
+        dataloader = build_dataloader(args.batch_size, args.data_dir)
         optimizer  = torch.optim.Adam(model.parameters(), lr=args.lr)
 
         train_losses = []

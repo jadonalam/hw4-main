@@ -6,8 +6,7 @@ Part 5 of EE/CS 148B HW4.
 Reference: Song et al. (2021) "Score-Based Generative Modeling through
 Stochastic Differential Equations" (Song21), Appendix B & D.
 
-Students implement every method marked TODO.  Methods marked PROVIDED
-are complete and should not be modified.
+Student-facing implementation of the VP SDE and samplers.
 """
 
 from __future__ import annotations
@@ -268,5 +267,28 @@ class VPSDE:
             Reconstructed images, shape (B, C, H, W).
         """
         num_steps = num_steps or self.T
-        # TODO (EC 5.D)
-        raise NotImplementedError
+        score_model.eval()
+        corrupted = corrupted.to(device)
+        mask = mask.to(device=device, dtype=corrupted.dtype)
+        x = torch.randn_like(corrupted)
+        dt = 1.0 / num_steps
+
+        for i in range(num_steps):
+            t_value = 1.0 - i * dt
+            t = torch.full((corrupted.size(0),), t_value, device=device)
+            beta_t = self.beta(t).reshape(corrupted.size(0), *([1] * (corrupted.ndim - 1)))
+            score = score_model(x, t)
+            drift = -0.5 * beta_t * x - beta_t * score
+            x_mean = x - drift * dt
+
+            if i < num_steps - 1:
+                x = x_mean + torch.sqrt(beta_t * dt) * torch.randn_like(x)
+                t_next = torch.full((corrupted.size(0),), max(t_value - dt, 0.0), device=device)
+                known, _ = self.marginal(corrupted, t_next)
+            else:
+                x = x_mean
+                known = corrupted
+
+            x = mask * known + (1.0 - mask) * x
+
+        return x.clamp(-1, 1)

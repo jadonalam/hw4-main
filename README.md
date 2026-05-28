@@ -10,19 +10,19 @@ hw4/
 ├── diffusion/                      # Core library
 │   ├── __init__.py
 │   ├── unet.py                     # PROVIDED: time-conditioned U-Net (shared by Parts 5 & 6)
-│   ├── vp.py                       # TODO: VP SDE, EM sampler, PC sampler  (Parts 5.A & 5.B)
-│   └── rectflow.py                 # TODO: Rectified Flow forward, loss, Euler sampler  (Part 6)
+│   ├── vp.py                       # VP SDE, EM sampler, PC sampler  (Parts 5.A & 5.B)
+│   └── rectflow.py                 # Rectified Flow forward, loss, Euler sampler  (Part 6)
 │
 ├── scripts/                        # CLI entry points
-│   ├── plot_coefficient.py         # TODO: Part 1.8 — coefficient plot
+│   ├── plot_coefficient.py         # Part 1.8 — coefficient plot
 │   ├── train_vp.py                 # Part 5.C — train VP score model on FashionMNIST
 │   ├── train_rectflow.py           # Part 6.A/C — train Rectified Flow (+ reflow)
-│   ├── sample.py                   # TODO: Parts 5.C, 6.B, 6.D — generate & compare samples
-│   ├── eval_kid.py                 # TODO: Part 6.B — KID evaluation table
-│   └── guided_diffusion_experiments.py  # TODO: Part 7 — plotting helpers
+│   ├── sample.py                   # Parts 5.C, 6.B, 6.D — generate & compare samples
+│   ├── eval_kid.py                 # Part 6.B — KID evaluation table
+│   └── guided_diffusion_experiments.py  # Part 7 — plotting helpers
 │
 ├── tests/                          # Test infrastructure
-│   ├── adapters.py                 # TODO: bind your implementations to test hooks
+│   ├── adapters.py                 # binds implementations to test hooks
 │   ├── test_vp.py                  # Autograder tests for VP SDE
 │   └── test_rectflow.py            # Autograder tests for Rectified Flow
 │
@@ -39,8 +39,6 @@ hw4/
 ```
 
 `PROVIDED` files contain working code and should not be modified.
-`TODO` files contain skeleton methods with `raise NotImplementedError` and
-clear docstrings — these are what you implement.
 
 ## Assignment Map
 
