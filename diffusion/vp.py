@@ -157,10 +157,25 @@ class VPSDE:
             Generated samples, shape (B, C, H, W), values in [-1, 1].
         """
         num_steps = num_steps or self.T
-        # TODO (5.B.i) — implement the EM sampler
-        # Hint: time runs from t=1 down to t≈0 in steps of Δt = 1/num_steps.
-        #       At t=1, initialise x ~ N(0, σ(1)² I).
-        raise NotImplementedError
+        score_model.eval()
+        dt = 1.0 / num_steps
+        sigma_1 = self.sigma(torch.ones((), device=device))
+        x = sigma_1 * torch.randn(shape, device=device)
+
+        for i in range(num_steps):
+            t = torch.full((shape[0],), 1.0 - i * dt, device=device)
+            beta_t = self.beta(t).reshape(shape[0], *([1] * (len(shape) - 1)))
+            score = score_model(x, t)
+            drift = -0.5 * beta_t * x - beta_t * score
+            x_mean = x - drift * dt
+
+            if i < num_steps - 1:
+                noise = torch.randn_like(x)
+                x = x_mean + torch.sqrt(beta_t * dt) * noise
+            else:
+                x = x_mean
+
+        return x.clamp(-1, 1)
 
     @torch.no_grad()
     def predictor_corrector(
@@ -189,8 +204,34 @@ class VPSDE:
             Generated samples, shape (B, C, H, W), values in [-1, 1].
         """
         num_steps = num_steps or self.T
-        # TODO (5.B.ii)
-        raise NotImplementedError
+        score_model.eval()
+        dt = 1.0 / num_steps
+        sigma_1 = self.sigma(torch.ones((), device=device))
+        x = sigma_1 * torch.randn(shape, device=device)
+
+        for i in range(num_steps):
+            t = torch.full((shape[0],), 1.0 - i * dt, device=device)
+
+            for _ in range(n_corrector):
+                grad = score_model(x, t)
+                noise = torch.randn_like(x)
+                grad_norm = torch.linalg.vector_norm(grad.flatten(1), dim=1).mean()
+                noise_norm = torch.linalg.vector_norm(noise.flatten(1), dim=1).mean()
+                step_size = 2.0 * (snr * noise_norm / grad_norm.clamp_min(1e-12)) ** 2
+                x = x + step_size * grad + torch.sqrt(2.0 * step_size) * noise
+
+            beta_t = self.beta(t).reshape(shape[0], *([1] * (len(shape) - 1)))
+            score = score_model(x, t)
+            drift = -0.5 * beta_t * x - beta_t * score
+            x_mean = x - drift * dt
+
+            if i < num_steps - 1:
+                noise = torch.randn_like(x)
+                x = x_mean + torch.sqrt(beta_t * dt) * noise
+            else:
+                x = x_mean
+
+        return x.clamp(-1, 1)
 
     # ------------------------------------------------------------------
     # 5.D  Inverse problems (EC)

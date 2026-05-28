@@ -68,8 +68,11 @@ class RectifiedFlow:
         Returns:
             Scalar loss.
         """
-        # TODO (6.A)
-        raise NotImplementedError
+        batch_size = x1.size(0)
+        t = torch.rand(batch_size, device=x1.device)
+        x_t, _, vel = self.forward_process(x1, t)
+        pred_vel = v_theta(x_t, t)
+        return F.mse_loss(pred_vel, vel)
 
     # ------------------------------------------------------------------
     # 6.B  Euler ODE sampler
@@ -99,8 +102,15 @@ class RectifiedFlow:
         Returns:
             Generated samples X_1, shape (B, C, H, W).
         """
-        # TODO (6.B)
-        raise NotImplementedError
+        v_theta.eval()
+        x = torch.randn(shape, device=device)
+        dt = 1.0 / num_steps
+
+        for i in range(num_steps):
+            t = torch.full((shape[0],), i * dt, device=device)
+            x = x + dt * v_theta(x, t)
+
+        return x.clamp(-1, 1)
 
     # ------------------------------------------------------------------
     # 6.C  Reflow  (data generation only — retraining uses loss() above)
@@ -133,5 +143,22 @@ class RectifiedFlow:
         Returns:
             (x0_all, x1_all): tensors of shape (n_pairs, C, H, W) on CPU.
         """
-        # TODO (6.C)
-        raise NotImplementedError
+        v_theta.eval()
+        x0_batches = []
+        x1_batches = []
+
+        for start in range(0, n_pairs, batch_size):
+            current_batch = min(batch_size, n_pairs - start)
+            shape = (current_batch, *image_shape)
+            x0 = torch.randn(shape, device=device)
+            x = x0.clone()
+            dt = 1.0 / num_steps
+
+            for i in range(num_steps):
+                t = torch.full((current_batch,), i * dt, device=device)
+                x = x + dt * v_theta(x, t)
+
+            x0_batches.append(x0.cpu())
+            x1_batches.append(x.clamp(-1, 1).cpu())
+
+        return torch.cat(x0_batches, dim=0), torch.cat(x1_batches, dim=0)
