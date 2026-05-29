@@ -25,6 +25,11 @@ from torchvision import datasets, transforms
 from diffusion.unet import UNet
 from diffusion.rectflow import RectifiedFlow
 
+try:
+    from scripts.plot_runs import save_loss_curve
+except ImportError:
+    from plot_runs import save_loss_curve
+
 
 def apply_config_defaults(parser: argparse.ArgumentParser, config_path: str | None, reflow: bool):
     if config_path is None:
@@ -167,6 +172,14 @@ def main():
             epoch_loss = running / len(dataloader.dataset)
             train_losses.append(epoch_loss)
             print(f"Reflow epoch {epoch:3d}/{args.epochs} | loss {epoch_loss:.4f}")
+            import numpy as np
+            np.save(Path(args.save_dir) / "train_losses.npy", np.array(train_losses))
+            save_loss_curve(
+                [train_losses],
+                ["train"],
+                Path(args.save_dir) / "loss_curve.png",
+                "Reflow retraining loss",
+            )
             if epoch_loss < best_loss:
                 best_loss = epoch_loss
                 torch.save(model.state_dict(), Path(args.save_dir) / "best.pt")
@@ -184,12 +197,18 @@ def main():
             loss = train_one_epoch(model, flow, dataloader, optimizer, device)
             train_losses.append(loss)
             print(f"Epoch {epoch:3d}/{args.epochs} | loss {loss:.4f}")
+            import numpy as np
+            np.save(Path(args.save_dir) / "train_losses.npy", np.array(train_losses))
+            save_loss_curve(
+                [train_losses],
+                ["train"],
+                Path(args.save_dir) / "loss_curve.png",
+                "Rectified flow loss",
+            )
             if loss < best_loss:
                 best_loss = loss
                 torch.save(model.state_dict(), Path(args.save_dir) / "best.pt")
 
-    import numpy as np
-    np.save(Path(args.save_dir) / "train_losses.npy", np.array(train_losses))
     print(f"Done. Best loss: {best_loss:.4f}")
 
 

@@ -110,6 +110,12 @@ uv run python scripts/sample.py --method pc \
     --checkpoint runs/vp/best.pt --beta_min 0.01 --beta_max 5.0 --n_corrector 3
 ```
 
+During training, each epoch updates:
+
+- `runs/vp/loss_curve.png`
+- `runs/vp/train_losses.npy`
+- `runs/vp/val_losses.npy`
+
 ## Training (Part 6 — Rectified Flow)
 
 ```bash
@@ -129,6 +135,20 @@ uv run python scripts/sample.py --method rectflow \
 uv run python scripts/eval_kid.py \
     --vp_checkpoint runs/vp/best.pt \
     --rf_checkpoint runs/rectflow/best.pt
+```
+
+During Rectified Flow training, each epoch updates `loss_curve.png` in the
+corresponding run folder. To regenerate all available loss plots into
+`runs/plots/`, run:
+
+```bash
+uv run python scripts/plot_runs.py
+```
+
+To keep refreshing them while another shell is training:
+
+```bash
+uv run python scripts/plot_runs.py --watch --interval 30
 ```
 
 ## Part 7 — Guided Diffusion (256×256)

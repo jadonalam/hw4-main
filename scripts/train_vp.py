@@ -22,6 +22,11 @@ from torchvision import datasets, transforms
 from diffusion.unet import UNet
 from diffusion.vp import VPSDE
 
+try:
+    from scripts.plot_runs import save_loss_curve
+except ImportError:
+    from plot_runs import save_loss_curve
+
 
 def apply_config_defaults(parser: argparse.ArgumentParser, config_path: str | None):
     if config_path is None:
@@ -163,6 +168,16 @@ def main():
         val_losses.append(val_loss)
         print(f"Epoch {epoch:3d}/{args.epochs} | train {train_loss:.4f} | val {val_loss:.4f}")
 
+        import numpy as np
+        np.save(Path(args.save_dir) / "train_losses.npy", np.array(train_losses))
+        np.save(Path(args.save_dir) / "val_losses.npy",   np.array(val_losses))
+        save_loss_curve(
+            [train_losses, val_losses],
+            ["train", "val"],
+            Path(args.save_dir) / "loss_curve.png",
+            "VP score model loss",
+        )
+
         # Checkpoint
         if val_loss < best_val:
             best_val = val_loss
@@ -175,10 +190,6 @@ def main():
             print(f"Early stopping at epoch {epoch} (no improvement for {args.patience} epochs).")
             break
 
-    # Save loss curves
-    import numpy as np
-    np.save(Path(args.save_dir) / "train_losses.npy", np.array(train_losses))
-    np.save(Path(args.save_dir) / "val_losses.npy",   np.array(val_losses))
     print(f"Training complete. Best val loss: {best_val:.4f}")
 
 
